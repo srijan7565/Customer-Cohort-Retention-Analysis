@@ -1,0 +1,86 @@
+1. Data Cleaning
+
+SELECT *
+INTO #online_retail_main
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (
+               PARTITION BY InvoiceNo, StockCode, Quantity
+               ORDER BY InvoiceDate
+           ) AS dup_flag
+    FROM Online_Retails
+    WHERE CustomerID IS NOT NULL
+      AND Quantity > 0
+      AND UnitPrice > 0
+) t
+WHERE dup_flag = 1;
+
+2. Cohort Creation
+
+SELECT 
+    CustomerID,
+    MIN(InvoiceDate) AS first_purchase_date,
+    DATEFROMPARTS(
+        YEAR(MIN(InvoiceDate)),
+        MONTH(MIN(InvoiceDate)),
+        1
+    ) AS Cohort_Date
+INTO #cohort
+FROM #online_retail_main
+GROUP BY CustomerID;
+
+3. Cohort Index
+
+SELECT 
+    m.CustomerID,
+    c.Cohort_Date,
+    m.InvoiceDate,
+    DATEDIFF(MONTH, c.Cohort_Date, m.InvoiceDate) + 1 AS Cohort_Index
+INTO #cohort_retention
+FROM #online_retail_main m
+JOIN #cohort c
+    ON m.CustomerID = c.CustomerID;
+
+4. Retention Calculation
+
+WITH cohort_counts AS (
+    SELECT 
+        Cohort_Date,
+        Cohort_Index,
+        COUNT(DISTINCT CustomerID) AS customer_count
+    FROM #cohort_retention
+    GROUP BY Cohort_Date, Cohort_Index
+)
+SELECT 
+    c1.Cohort_Date,
+    c1.Cohort_Index,
+    c1.customer_count,
+    c2.customer_count AS base_count,
+    CAST(
+        c1.customer_count * 100.0 / c2.customer_count
+        AS DECIMAL(5,2)
+    ) AS retention_rate
+INTO #cohort_retention_final
+FROM cohort_counts c1
+JOIN cohort_counts c2
+    ON c1.Cohort_Date = c2.Cohort_Date
+    AND c2.Cohort_Index = 1;
+
+5. Pivot Table
+
+SELECT *
+FROM (
+    SELECT
+        customer_count,
+        Cohort_Date,
+        Cohort_Index
+    FROM #cohort_retention_final
+) tbl
+PIVOT (
+    MAX(customer_count)
+    FOR Cohort_Index IN (
+        [1],[2],[3],[4],[5],[6],[7],
+        [8],[9],[10],[11],[12],[13]
+    )
+) AS pivot_table
+ORDER BY Cohort_Date;
