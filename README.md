@@ -1,5 +1,7 @@
 # Customer-Cohort-Retention-Analysis
+
 Cohort analysis using SQL and Power BI
+
 **Project Overview**
 
 This project focuses on analyzing customer retention behavior using cohort analysis. By grouping customers based on their first purchase month, the project tracks how customer engagement changes over time. The insights are visualized using Power BI dashboards to understand retention trends and customer drop-off patterns.
